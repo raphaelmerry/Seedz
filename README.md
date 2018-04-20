@@ -4,7 +4,9 @@ Automatic Plant Grower powered by a Raspberry Pi along with an Arduino Mega.
 # Liens utiles : 
 ## Connection Raspberry-Arduino
 W/ Serial USB Cable : https://oscarliang.com/connect-raspberry-pi-and-arduino-usb-cable/
+
 Using Python : https://www.akeric.com/blog/?p=2420
+
 Using Processing : http://makerspace56.org/recuperer-une-valeur-analogique-arduino-avec-processing/
 
 ## Langages de contrôle disponibles :
