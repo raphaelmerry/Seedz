@@ -6,7 +6,6 @@
 #include "DHT.h"                                         // Externe library used in this arduino sketch
 #include "RGBdriver.h"
 
-//Definition of all pin
 #define OLED_RESET 4                                     // Attach OLED screen reset to Arduino Digital Pin 4 
 Adafruit_SSD1306 display(OLED_RESET);
 
@@ -49,12 +48,16 @@ int picNameNum = 0;                                      // Picture Name
 bool takePicture = false;                                 // Variable used to trigger component function
 bool startCooler = false;
 bool startLed = false;
+bool startSprinkler = false;
 bool getData = false;
 bool getHumidity = true;
 bool getHygrometry = true;
 bool getTemperature = true;
 bool getLight = false;
 bool getWaterLevel = true;
+
+int instruction[8] = {0};
+int componentData[4] = {0};
 
 void setup()
 {   
@@ -90,34 +93,49 @@ void setup()
 
 void loop()
 {
-    WaintingProcessingInstruction();
+    WaitingProcessingInstruction();
+    for(int i = 0; i < 8; i++)
+    {
+       Serial.print(instruction[i]-48);
+    }
+    Serial.println(" ");
+    InterpreteInstruction();
     if (takePicture == true)
     {
-        StartLed(255, 255, 255);
+        Driver.begin();
+        Driver.SetColor(255, 255, 255);
+        Driver.end();  
+        StartLed();
         TakeSendPicture();
         if (startLed == true)
         {
-            StartLed(62, 6, 148);
+            Driver.begin();
+            Driver.SetColor(62, 6, 148);
+            Driver.end();  
+            StartLed();            
         }
         else 
         {
+            Driver.begin();
+            Driver.SetColor(0, 0, 0);
+            Driver.end();  
             StopLed();
         }
     }
     if (getData == true)
     {
-        int componentData[3];
+        componentData[0] = 0;
         if (getHumidity == true)
         {
-            componentData[0] = GetHumidity();
+            componentData[1] = GetHumidity();
         }
         if (getHygrometry == true)
         {
-            componentData[1] = GetHygrometry();
+            componentData[2] = GetHygrometry();
         }
         if (getTemperature == true)
         {
-            componentData[2] = GetTemperature();
+            componentData[3] = GetTemperature();
         }
         getData = false;
         SendDataToProcessing();
@@ -133,35 +151,124 @@ void loop()
     }
     if (startLed == true)
     {
-        StartLed(62, 6, 148);
+        Driver.begin();
+        Driver.SetColor(62, 6, 148);
+        Driver.end();    
+        StartLed();
     }
     else 
     {
         StopLed();
+        Driver.begin();
+        Driver.SetColor(0, 0, 0);
+        Driver.end();    
         startLed = false;
     }
     if (startCooler == true)
     {
         StartCooler();
+        digitalWrite(PELTIER, HIGH );
+        digitalWrite(LED_CONTROL, HIGH); 
     }
     else 
     {
         StopCooler();
+        digitalWrite(PELTIER, LOW );
+        digitalWrite(LED_CONTROL, LOW);
         startCooler = false;
+    }
+    if (startSprinkler == true)
+    {
+        StartSprinkler();
+        digitalWrite(WATER_ATOMIZER, HIGH );
+        digitalWrite(LED_CONTROL, HIGH);    
+    }
+    else 
+    {
+        StopSprinkler();    
+        digitalWrite(WATER_ATOMIZER, LOW );
+        digitalWrite(LED_CONTROL, LOW);  
+        startSprinkler = false;
     }
     delay(1000);
 }
 /*********************************************************************/
-void WaintingProcessingInstruction();
+void InterpreteInstruction()
+{  
+    if(instruction[0] == '1')
+    {
+        getData = true;
+    }
+    else
+    {
+        getData = false;
+    }
+    if(instruction[1] == '1')
+    {
+        takePicture = true;
+    }
+    else
+    {
+        takePicture = false;
+    }
+    if(instruction[2] == '1')
+    {
+        startCooler = true;
+    }
+    else
+    {
+        startCooler = false;
+    }
+    if(instruction[3] == '1')
+    {
+        startSprinkler = true;
+    }
+    else
+    {
+        startSprinkler = false;
+    }
+    if(instruction[4] == '1')
+    {
+        startLed = true;
+    }
+    else
+    {
+        startLed = false;
+    }
+    if(instruction[5] == '1')
+    {
+        getLight = true;
+    }
+    else
+    {
+        getLight = false;
+    }
+    if(instruction[6] == '1')
+    {
+        getWaterLevel = true;
+    }
+    else
+    {
+        getWaterLevel = false;
+    }    
+}
+/*********************************************************************/
+void WaitingProcessingInstruction()
 {
-    while(instruction[4] == '1')
-    {                                                   
-        int instruction[5] = 0;
-        for(int i = 0; i < 5; i++)
+    while(true)
+    {        
+        for(int i = 0; i < 8; i++)
         {
-            instruction[i] = Serial.read();
+            instruction[i] = 0;
+        }   
+        while(Serial.available())
+        {                     
+            for(int i = 0; i < 8; i++)
+            {
+                instruction[i] = Serial.read();
+            }           
         }
-        if(instruction[4] == '1')
+        if(instruction[7] == '1')
         {
             display.clearDisplay();
             display.setTextSize(1);
@@ -174,6 +281,7 @@ void WaintingProcessingInstruction();
             display.println("Received");
             display.display();
             delay(1000);
+            break;
         }
         else
         {
@@ -181,7 +289,7 @@ void WaintingProcessingInstruction();
             display.setTextSize(1);
             display.setTextColor(WHITE);
             display.setCursor(0,0);
-            display.println("Wainting");
+            display.println("Waiting");
             display.setCursor(0,10);
             display.println("Processing");
             display.setCursor(0,20);
@@ -193,7 +301,36 @@ void WaintingProcessingInstruction();
 /*********************************************************************/
 void SendDataToProcessing()
 {
-    
+    for(int i = 0; i < 4; i++)
+    {
+        Serial.println(componentData[i]);
+    }
+}
+/*********************************************************************/
+void StartSprinkler()
+{
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(0,0);
+    display.println("Sprinkler is");
+    display.setCursor(0,10);
+    display.println("ON");
+    display.display();
+    delay(500);
+}
+/*********************************************************************/
+void StopSprinkler()
+{
+    display.clearDisplay();
+    display.setTextSize(1);
+    display.setTextColor(WHITE);
+    display.setCursor(0,0);
+    display.println("Sprinkler is");
+    display.setCursor(0,10);
+    display.println("OFF");
+    display.display();  
+    delay(500);
 }
 /*********************************************************************/
 void StartCooler()
@@ -206,9 +343,6 @@ void StartCooler()
     display.setCursor(0,10);
     display.println("ON");
     display.display();
-    
-    digitalWrite(PELTIER, HIGH );
-    digitalWrite(LED_CONTROL, HIGH);    
     delay(500);
 }
 /*********************************************************************/
@@ -222,18 +356,11 @@ void StopCooler()
     display.setCursor(0,10);
     display.println("OFF");
     display.display();
-    
-    digitalWrite(PELTIER, LOW );
-    digitalWrite(LED_CONTROL, LOW);    
     delay(500);
 }
 /*********************************************************************/
 void StopLed()
 {
-    Driver.begin();
-    Driver.SetColor(0, 0, 0);
-    Driver.end();
-    
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(WHITE);
@@ -245,12 +372,8 @@ void StopLed()
     delay(500);
 }
 /*********************************************************************/
-void StartLed(int R, int G, int B)
-{
-    Driver.begin();
-    Driver.SetColor(R, G, B);
-    Driver.end();
-    
+void StartLed()
+{   
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(WHITE);
@@ -393,7 +516,7 @@ int GetHygrometry()
         display.setCursor(0,10);
         display.println("from DHT");
         display.display();
-        delay(500);              
+        delay(5000);              
     }
     else
     {
@@ -403,7 +526,7 @@ int GetHygrometry()
         display.print("Humidity:    ");
         display.print(h);
         display.println(" %");
-        delay(500);        
+        delay(5000);    
         return((int) h);
     }
 }
@@ -434,7 +557,7 @@ int GetTemperature()
         display.print(t);
         display.println(" C");
         display.display();
-        delay(500);        
+        delay(500);   
         return((int) t);
     }
 }
